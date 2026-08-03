@@ -98,17 +98,6 @@ fun MainScreen(
             ) { Text(stringResource(R.string.main_grant_overlay)) }
         }
 
-        // accessibility button
-//        if (!accessibilityGranted) {
-            Button(
-                onClick = {
-                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(),
-            ) { Text("Enable dialog detection (recommended)") }
-//        }
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notifGranted) {
             Button(
                 onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },

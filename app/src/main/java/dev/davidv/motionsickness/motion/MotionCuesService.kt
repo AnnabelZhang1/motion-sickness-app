@@ -118,18 +118,6 @@ class MotionCuesService : Service() {
         overlayView = view
         overlayParams = params
 
-        scope.launch {
-            _dialogVisible.collect { dialogShowing ->
-                if (dialogShowing) {
-                    overlayView?.let { runCatching { windowManager.removeViewImmediate(it) } }
-                } else if (overlayView != null) {
-                    // Overlay object still exists in memory but its window was pulled —
-                    // re-add it now that the dialog is gone.
-                    val p = overlayParams ?: return@collect
-                    runCatching { windowManager.addView(overlayView, p) }
-                }
-            }
-        }
     }
 
     private fun detachOverlay() {
@@ -212,8 +200,5 @@ class MotionCuesService : Service() {
             val intent = Intent(context, MotionCuesService::class.java).setAction(ACTION_STOP)
             context.startService(intent)
         }
-
-        private val _dialogVisible = MutableStateFlow(false)
-        fun setDialogVisible(visible: Boolean) { _dialogVisible.value = visible }
     }
 }

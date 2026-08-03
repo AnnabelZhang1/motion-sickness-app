@@ -8,8 +8,7 @@
     <string name="motion_cues_notification_text">Drawing motion dots over other apps</string>
     <string name="motion_cues_notification_stop">Stop</string>
     <string name="motion_cues_tile_label">Motion Cues</string>
-    <string name="dialog_watcher_description">Lets Motion Cues detect when a dialog box is on screen, so it can hide the overlay and keep its buttons tappable.</string>
-
+    
     <string name="main_title">Vehicle motion cues</string>
     <string name="main_subtitle">Reduces motion sickness by showing dots that drift with the car\'s motion.</string>
     <string name="main_grant_overlay">Grant draw-over-apps permission</string>
