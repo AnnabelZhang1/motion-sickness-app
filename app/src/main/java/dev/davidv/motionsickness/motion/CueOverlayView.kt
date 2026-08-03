@@ -277,15 +277,16 @@ class CueOverlayView(context: Context) : View(context) {
         private const val PARTICLE_COUNT = GRID_DIM * GRID_DIM
         private const val GRID_EXTENT = 3.5f
 
-        private const val DRIVE_GAIN = 0.6f
-        private const val DAMP = 1.2f
+        // controls speed of dot movement
+        private const val DRIVE_GAIN = 1.7f //og 0.6f
+        private const val DAMP = 0.9f //og 1.2f
         private const val YAW_GAIN = 1.5f
         private const val PITCH_GAIN = 1.5f
         private const val DOT_SIZE_PX = 8f
 
         private const val SIZE_OUT_OF_PLANE_GAIN = 1.2f
         private const val SIZE_RELEASE_SEC = 0.9f
-        private const val SIZE_BOOST_MAX = 8f
+        private const val SIZE_BOOST_MAX = 5f //og 8f
 
         // Focus-mode radial falloff: below FOCUS_INNER (normalized distance from center,
         // 0=center 1=corner) dots are invisible; above FOCUS_OUTER they're full size.

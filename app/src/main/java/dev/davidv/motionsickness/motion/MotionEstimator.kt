@@ -36,24 +36,26 @@ data class MotionVector(
 }
 
 /**
- * Reads raw accelerometer + gyroscope data (no fused rotation-vector dependency, since that
- * fused sensor is unreliable on the emulator and unnecessary now that cues don't world-level)
- * into the inputs the renderer needs.
+ * Reads raw accelerometer + gyroscope data, plus the fused TYPE_GRAVITY sensor (accel+gyro,
+ * updates instantly with orientation) so tilting the phone doesn't get misread as linear
+ * acceleration — a plain low-pass filter on raw accelerometer can't tell "orientation changed"
+ * apart from "phone accelerated," which is what TYPE_GRAVITY is specifically built to solve.
  */
 class MotionEstimator(context: Context) {
 
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+    private val gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY)
     private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
     private val _motion = MutableStateFlow(MotionVector.ZERO)
     val motion: StateFlow<MotionVector> = _motion.asStateFlow()
 
-    // Slow-tracked gravity estimate, subtracted from raw accelerometer readings to approximate
-    // linear acceleration ourselves instead of relying on the platform's fused sensor.
-    private var gravX = 0f
-    private var gravY = 0f
-    private var gravZ = 0f
+    // Latest fused gravity reading, subtracted from raw accelerometer readings to isolate
+    // linear acceleration.
+    @Volatile private var gravX = 0f
+    @Volatile private var gravY = 0f
+    @Volatile private var gravZ = 9.81f
 
     private var filteredX = 0f
     private var filteredY = 0f
@@ -75,6 +77,11 @@ class MotionEstimator(context: Context) {
     private val listener = object : SensorEventListener {
         override fun onSensorChanged(event: SensorEvent) {
             when (event.sensor.type) {
+                Sensor.TYPE_GRAVITY -> {
+                    gravX = event.values[0]
+                    gravY = event.values[1]
+                    gravZ = event.values[2]
+                }
                 Sensor.TYPE_ACCELEROMETER ->
                     updateAccel(event.values[0], event.values[1], event.values[2], event.timestamp)
                 Sensor.TYPE_GYROSCOPE ->
@@ -88,13 +95,8 @@ class MotionEstimator(context: Context) {
         val dt = if (lastAccelTsNs == 0L) 0.02f else ((tsNs - lastAccelTsNs) / 1e9f).coerceIn(0.001f, 0.2f)
         lastAccelTsNs = tsNs
 
-        // Raw accelerometer includes gravity; track it with a slow low-pass filter and
-        // subtract it out to approximate linear acceleration ourselves.
-        val gAlpha = dt / (GRAVITY_TIME_CONSTANT_SEC + dt)
-        gravX += gAlpha * (ax - gravX)
-        gravY += gAlpha * (ay - gravY)
-        gravZ += gAlpha * (az - gravZ)
-
+        // Subtract the fused gravity reading (updates instantly with orientation) so tilting
+        // the phone doesn't register as acceleration.
         val hx = ax - gravX
         val hy = ay - gravY
         val hz = az - gravZ
@@ -162,6 +164,7 @@ class MotionEstimator(context: Context) {
         // bypassing Android 12+ background sensor restrictions.
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
             sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+            sensorManager.registerListener(listener, gravitySensor, SensorManager.SENSOR_DELAY_GAME)
             sensorManager.registerListener(listener, gyroscope, SensorManager.SENSOR_DELAY_GAME)
 
             // TEMP: synthetic oscillating drive, bypassing real sensors — remove once done
@@ -192,7 +195,7 @@ class MotionEstimator(context: Context) {
         filteredZ = 0f
         filteredYawRate = 0f
         filteredPitchRate = 0f
-        // Don't clear gx/gy/gzBias or gravity estimate — both are hardware/orientation
+        // Don't clear gx/gy/gzBias or the gravity estimate — both are hardware/orientation
         // properties that should persist across stop/start.
         stillAccumSec = 0f
         lastAccelMagSq = 0f
@@ -201,7 +204,6 @@ class MotionEstimator(context: Context) {
 
     companion object {
         private const val ACCEL_TIME_CONSTANT_SEC = 0.08f
-        private const val GRAVITY_TIME_CONSTANT_SEC = 1.0f
         private const val GYRO_TIME_CONSTANT_SEC = 0.03f
 
         // Stillness thresholds. Tight enough that actual motion doesn't count as still; loose
