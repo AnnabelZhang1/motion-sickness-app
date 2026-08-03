@@ -211,9 +211,8 @@ class CueOverlayView(context: Context) : View(context) {
 
     private fun step(dt: Float) {
         if (isLandscape) {
-            // Bypass roll-based rotation entirely — don't depend on the sensor-axis remap
-            // being correct. Collapse both in-plane motion components into one scalar and
-            // drive the grid purely along x, so dots always move left-right in landscape.
+            // Collapse both in-plane motion components into one scalar and drive the grid
+            // purely along x, so dots always move left-right in landscape.
             val combinedDrive = sqrt(motionX * motionX + motionY * motionY)
             val sign = if (motionX + motionY < 0f) -1f else 1f
             gridVx += (-combinedDrive * sign * DRIVE_GAIN) * dt
@@ -233,15 +232,6 @@ class CueOverlayView(context: Context) : View(context) {
         gridVy *= damping
         gridOx += gridVx * dt
         gridOy += gridVy * dt
-
-        // Rotation scrolls the grid directly — sustained rotation → sustained flow,
-        // stop rotating → flow stops.
-        if (isLandscape) {
-            gridOx += (yawRateRps + pitchRateRps) * YAW_GAIN * dt
-        } else {
-            gridOx += yawRateRps * YAW_GAIN * dt
-            gridOy += pitchRateRps * PITCH_GAIN * dt
-        }
 
         val wrapSpan = 2f * GRID_EXTENT
         if (gridOx > GRID_EXTENT) gridOx -= wrapSpan
