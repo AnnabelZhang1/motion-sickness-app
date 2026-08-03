@@ -17,6 +17,7 @@ import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowManager
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import dev.davidv.motionsickness.MainActivity
 import dev.davidv.motionsickness.R
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import android.util.Log //for notifications
 
 /**
  * Hosts the motion-cue overlay for as long as the user wants it visible. Lives as a foreground
@@ -52,6 +54,7 @@ class MotionCuesService : Service() {
         motionEstimator = MotionEstimator(this)
     }
 
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelfCleanly()
@@ -74,6 +77,8 @@ class MotionCuesService : Service() {
         return START_STICKY
     }
 
+    private var overlayParams: WindowManager.LayoutParams? = null
+
     private fun attachOverlay() {
         if (overlayView != null) return
         val view = CueOverlayView(this)
@@ -94,11 +99,37 @@ class MotionCuesService : Service() {
             // that threshold lets taps fall through to apps below. The slight dimming is barely
             // noticeable in practice.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                alpha = 0.79f
+                alpha = 0.79f //og is 0.79f
+                Log.d("ALPHA EDIT", "alpha changed to $alpha")
             }
         }
-        windowManager.addView(view, params)
+//        windowManager.addView(view, params)
+//        overlayView = view
+//        overlayParams = params
+
+        try {
+            windowManager.addView(view, params)
+        } catch (e: IllegalStateException) {
+            // A stale view from a previous, improperly-torn-down run is still registered.
+            // Remove it and retry once rather than crashing the service.
+            runCatching { windowManager.removeViewImmediate(view) }
+            windowManager.addView(view, params)
+        }
         overlayView = view
+        overlayParams = params
+
+        scope.launch {
+            _dialogVisible.collect { dialogShowing ->
+                if (dialogShowing) {
+                    overlayView?.let { runCatching { windowManager.removeViewImmediate(it) } }
+                } else if (overlayView != null) {
+                    // Overlay object still exists in memory but its window was pulled —
+                    // re-add it now that the dialog is gone.
+                    val p = overlayParams ?: return@collect
+                    runCatching { windowManager.addView(overlayView, p) }
+                }
+            }
+        }
     }
 
     private fun detachOverlay() {
@@ -125,6 +156,7 @@ class MotionCuesService : Service() {
         super.onDestroy()
     }
 
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     private fun startForegroundWithNotification() {
         val channelId = "motion_cues"
         val nm = getSystemService(NotificationManager::class.java)
@@ -180,5 +212,8 @@ class MotionCuesService : Service() {
             val intent = Intent(context, MotionCuesService::class.java).setAction(ACTION_STOP)
             context.startService(intent)
         }
+
+        private val _dialogVisible = MutableStateFlow(false)
+        fun setDialogVisible(visible: Boolean) { _dialogVisible.value = visible }
     }
 }

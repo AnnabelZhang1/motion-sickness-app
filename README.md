@@ -10,6 +10,11 @@ It works similarly to vehicle motion cues on iPhone and aims to reduce motion si
 
 <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/main.png" alt="Main screen" width="300" /> <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/dots.png" alt="Overlay dots screen" width="300" />
 
+## ACKNOWLEDGEMENTS
+
+Forked from: https://github.com/DavidVentura/motion-sickness-app
+With quick tile feature from: https://github.com/jaival-11/motion-sickness-app
+
 ## License
 
 This project is licensed under `GPL-3.0-only`.

@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,8 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(Unit) { logEnabledAccessibilityServices(context) }
 
     var overlayGranted by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
     var notifGranted by remember { mutableStateOf(hasNotificationPermission(context)) }
@@ -95,6 +98,17 @@ fun MainScreen(
             ) { Text(stringResource(R.string.main_grant_overlay)) }
         }
 
+        // accessibility button
+//        if (!accessibilityGranted) {
+            Button(
+                onClick = {
+                    context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(),
+            ) { Text("Enable dialog detection (recommended)") }
+//        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !notifGranted) {
             Button(
                 onClick = { notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) },
@@ -126,8 +140,18 @@ private fun hasNotificationPermission(context: android.content.Context): Boolean
         PackageManager.PERMISSION_GRANTED
 }
 
+private fun logEnabledAccessibilityServices(context: android.content.Context) {
+    val am = context.getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+    val enabledServices = am.getEnabledAccessibilityServiceList(
+        android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK,
+    )
+    android.util.Log.d("A11yCheck", "Enabled services: ${enabledServices.map { it.id }}")
+}
+
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
     MyApplicationTheme { MainScreen(onItemClick = {}) }
 }
+
+

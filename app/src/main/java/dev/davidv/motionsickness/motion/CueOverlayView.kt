@@ -15,6 +15,7 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
+import android.util.Log //for notifications
 
 /**
  * How the dot sizes scale with screen position.
@@ -56,6 +57,9 @@ class CueOverlayView(context: Context) : View(context) {
     private var centerX = 0f
     private var centerY = 0f
 
+//    for phone orientation
+    @Volatile private var isLandscape = false
+
     @Volatile var mode: CueMode = CueMode.Focus
 
     private var gridVx = 0f
@@ -67,6 +71,19 @@ class CueOverlayView(context: Context) : View(context) {
     private var lastFrameNs = 0L
     private var running = false
 
+//    private val paint = Paint().apply {
+//        isAntiAlias = true
+//        color = 0xFFFFFFFF.toInt()
+//        alpha = 217 // 0.85 * 255
+//        style = Paint.Style.FILL
+//    }
+
+    private val haloPaint = Paint().apply {
+        isAntiAlias = true
+        color = 0xFF000000.toInt()
+        alpha = 140
+        style = Paint.Style.FILL
+    }
     private val paint = Paint().apply {
         isAntiAlias = true
         color = 0xFFFFFFFF.toInt()
@@ -95,6 +112,8 @@ class CueOverlayView(context: Context) : View(context) {
         halfDiag = sqrt((w.toFloat() * w + h.toFloat() * h)) / 2f
         centerX = w / 2f
         centerY = h / 2f
+        isLandscape = w > h
+        if (isLandscape) Log.d("CueOverlayView", "isLandscape = true (w=$w, h=$h)")
         resetParticles()
     }
 
@@ -126,8 +145,10 @@ class CueOverlayView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val sizeBoost = (1f + sizeEnvelope).coerceIn(1f, SIZE_BOOST_MAX)
-        val cosR = cos(rollRadians)
-        val sinR = sin(rollRadians)
+//        val cosR = cos(rollRadians)
+//        val sinR = sin(rollRadians)
+        val cosR = if (isLandscape) 1f else cos(rollRadians)
+        val sinR = if (isLandscape) 0f else sin(rollRadians)
         val ext = GRID_EXTENT
         val span = 2f * ext
 
@@ -155,18 +176,58 @@ class CueOverlayView(context: Context) : View(context) {
                 if (focus <= 0.01f) continue
                 radius *= focus
             }
+//            canvas.drawCircle(px, py, radius, paint)
+            canvas.drawCircle(px, py, radius * HALO_SCALE, haloPaint)
             canvas.drawCircle(px, py, radius, paint)
         }
     }
 
-    private fun step(dt: Float) {
-        val cosR = cos(rollRadians)
-        val sinR = sin(rollRadians)
-        val driveLx = motionX * cosR - motionY * sinR
-        val driveLy = motionX * sinR + motionY * cosR
+//    private fun step(dt: Float) {
+//
+//        val cosR = cos(rollRadians)
+//        val sinR = sin(rollRadians)
+//        val driveLx = motionX * cosR - motionY * sinR
+//        val driveLy = motionX * sinR + motionY * cosR
+//
+//        gridVx += (-driveLx * DRIVE_GAIN) * dt
+//        gridVy += (-driveLy * DRIVE_GAIN) * dt
+//        val damping = exp(-DAMP * dt)
+//        gridVx *= damping
+//        gridVy *= damping
+//        gridOx += gridVx * dt
+//        gridOy += gridVy * dt
+//
+//        // Rotation scrolls the grid directly — sustained rotation → sustained flow,
+//        // stop rotating → flow stops.
+//        gridOx += yawRateRps * YAW_GAIN * dt
+//        gridOy += pitchRateRps * PITCH_GAIN * dt
+//
+//        val wrapSpan = 2f * GRID_EXTENT
+//        if (gridOx > GRID_EXTENT) gridOx -= wrapSpan
+//        else if (gridOx < -GRID_EXTENT) gridOx += wrapSpan
+//        if (gridOy > GRID_EXTENT) gridOy -= wrapSpan
+//        else if (gridOy < -GRID_EXTENT) gridOy += wrapSpan
+//    }
 
-        gridVx += (-driveLx * DRIVE_GAIN) * dt
-        gridVy += (-driveLy * DRIVE_GAIN) * dt
+    private fun step(dt: Float) {
+        if (isLandscape) {
+            // Bypass roll-based rotation entirely — don't depend on the sensor-axis remap
+            // being correct. Collapse both in-plane motion components into one scalar and
+            // drive the grid purely along x, so dots always move left-right in landscape.
+            val combinedDrive = sqrt(motionX * motionX + motionY * motionY)
+            val sign = if (motionX + motionY < 0f) -1f else 1f
+            gridVx += (-combinedDrive * sign * DRIVE_GAIN) * dt
+            gridVy = 0f
+        } else {
+            val cosR = cos(rollRadians)
+            val sinR = sin(rollRadians)
+            val driveLx = motionX * cosR - motionY * sinR
+            val driveLy = motionX * sinR + motionY * cosR
+
+            gridVx += (-driveLx * DRIVE_GAIN) * dt
+            gridVy += (-driveLy * DRIVE_GAIN) * dt
+        }
+
         val damping = exp(-DAMP * dt)
         gridVx *= damping
         gridVy *= damping
@@ -175,8 +236,12 @@ class CueOverlayView(context: Context) : View(context) {
 
         // Rotation scrolls the grid directly — sustained rotation → sustained flow,
         // stop rotating → flow stops.
-        gridOx += yawRateRps * YAW_GAIN * dt
-        gridOy += pitchRateRps * PITCH_GAIN * dt
+        if (isLandscape) {
+            gridOx += (yawRateRps + pitchRateRps) * YAW_GAIN * dt
+        } else {
+            gridOx += yawRateRps * YAW_GAIN * dt
+            gridOy += pitchRateRps * PITCH_GAIN * dt
+        }
 
         val wrapSpan = 2f * GRID_EXTENT
         if (gridOx > GRID_EXTENT) gridOx -= wrapSpan
@@ -247,5 +312,7 @@ class CueOverlayView(context: Context) : View(context) {
             val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
             return t * t * (3f - 2f * t)
         }
+
+        private const val HALO_SCALE = 1.35f
     }
 }

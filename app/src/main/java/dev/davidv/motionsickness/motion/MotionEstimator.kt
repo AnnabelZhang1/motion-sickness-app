@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlin.math.atan2
 import kotlin.math.sqrt
+import android.util.Log
 
 /**
  * Horizontal-world acceleration in m/s^2, plus device roll and angular rates, so the renderer
@@ -44,6 +45,11 @@ data class MotionVector(
  * needs to make the dot field feel like a fixed world you're moving and rotating through.
  */
 class MotionEstimator(context: Context) {
+
+//    private val sensorManager = context.getSystemService(SensorManager::class.java)
+//    private val linearAccel = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
+//    private val rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+//    private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
 
     private val sensorManager = context.getSystemService(SensorManager::class.java)
     private val linearAccel = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
